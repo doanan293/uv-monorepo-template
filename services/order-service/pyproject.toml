@@ -1,0 +1,46 @@
+[project]
+name = "order-service"
+version = "0.1.0"
+description = "Sample API that places orders and checks items against catalog-service"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.141,<1",
+    "httpx2>=2.16,<3",
+    "pydantic>=2.11,<3",
+    "pydantic-settings>=2.6,<3",
+    "uvicorn>=0.52,<1",
+]
+
+[project.scripts]
+order-service = "order_service.main:main"
+
+[build-system]
+requires = ["uv_build>=0.12.0,<0.13.0"]
+build-backend = "uv_build"
+
+[tool.ruff]
+extend = "../../ruff.toml"
+src = ["src", "tests"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# Lets tests import shared test doubles: `from fakes import FakeItemRepository`.
+pythonpath = ["tests"]
+addopts = ["--import-mode=importlib"]
+filterwarnings = ["error"]
+
+[tool.coverage.run]
+omit = ["*/main.py"]
+
+[tool.pyrefly]
+project-includes = ["src", "tests"]
+search-path = ["src", "tests"]
+
+[tool.pyrefly.errors]
+# An unused `# pyrefly: ignore` is an error, so workarounds expire on their own.
+unused-ignore = true
+
+[[tool.pyrefly.sub-config]]
+matches = "**/tests/**"
+errors = { implicit-any = false, missing-override-decorator = false }

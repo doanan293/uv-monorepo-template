@@ -1,0 +1,83 @@
+name: CI
+
+on:
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.12.13"
+      - name: Install workspace
+        run: uv sync --all-packages --locked
+      - name: Ruff
+        run: |
+          uv run ruff check .
+          uv run ruff format --check .
+      - name: Pyrefly (every service)
+        run: |
+          for d in services/*/; do
+            uv run --directory "$d" pyrefly check --min-severity warn
+          done
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.12.13"
+      - name: Install workspace
+        run: uv sync --all-packages --locked
+      - name: Test changed services
+        env:
+          BASE_BRANCH: ${{ github.base_ref }}
+        run: |
+          CHANGED=$(git diff --name-only "origin/${BASE_BRANCH}...HEAD")
+          # Root files (lock, tooling) affect every service.
+          ROOT_CHANGED=$(echo "$CHANGED" | grep -E '^(pyproject\.toml|uv\.lock|ruff\.toml|\.python-version)$' || true)
+          TESTED=0
+          for pyproject in services/*/pyproject.toml; do
+            dir=$(dirname "$pyproject")
+            if [ -n "$ROOT_CHANGED" ] || echo "$CHANGED" | grep -q "^${dir}/"; then
+              echo "::group::Testing ${dir}"
+              (cd "$dir" && uv run pytest --cov=src --cov-fail-under=80)
+              echo "::endgroup::"
+              TESTED=1
+            fi
+          done
+          [ "$TESTED" -eq 1 ] || echo "No service changed."
+
+  secret-scan:
+    name: Secret Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Install Gitleaks
+        run: |
+          GITLEAKS_VERSION="8.30.1"
+          curl -sSL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            | tar -xz -C /usr/local/bin gitleaks
+      - name: Run Gitleaks
+        env:
+          BASE_BRANCH: ${{ github.base_ref }}
+        run: |
+          BASE=$(git merge-base HEAD "origin/${BASE_BRANCH}")
+          gitleaks git --no-banner -c .gitleaks.toml -v --exit-code 1 --log-opts="${BASE}..HEAD"

@@ -1,0 +1,58 @@
+# Shared hooks for the whole repository.
+# Install once from the repository root: uv run pre-commit install
+# Run on every file:                     uv run pre-commit run --all-files
+exclude: '(^|/)(\.venv|node_modules)/'
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+      - id: check-added-large-files
+        args: [--maxkb=2000]
+      - id: check-merge-conflict
+      - id: debug-statements
+      - id: detect-private-key
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.7
+    hooks:
+      - id: ruff-check
+        args: [--fix]
+      - id: ruff-format
+
+  - repo: local
+    hooks:
+      # Checks every service, so a new service needs no change here.
+      - id: pyrefly
+        name: pyrefly check (every service)
+        entry: bash -c 'for d in services/*/; do uv run --directory "$d" pyrefly check --min-severity warn || exit 1; done'
+        language: system
+        files: ^services/.*\.(py|pyi|toml)$
+        pass_filenames: false
+        require_serial: true
+
+  - repo: local
+    hooks:
+      # Pinned image; the upstream hadolint-docker hook always pulls the latest tag.
+      - id: hadolint
+        name: hadolint (Dockerfiles)
+        entry: ghcr.io/hadolint/hadolint:v2.15.1 hadolint
+        language: docker_image
+        types: [dockerfile]
+        # `Dockerfile` or `<name>.Dockerfile`; identify also tags
+        # Dockerfile.dockerignore as a Dockerfile, so match names explicitly.
+        files: (^|/)([^/]+\.)?Dockerfile$
+
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.1
+    hooks:
+      - id: gitleaks
+
+  - repo: https://github.com/astral-sh/uv-pre-commit
+    rev: 0.12.13
+    hooks:
+      # One lock for the whole workspace: any pyproject.toml change relocks it.
+      - id: uv-lock

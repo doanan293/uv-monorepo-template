@@ -1,0 +1,78 @@
+# Local stack. Copy .env.example to .env first, then: docker compose up --build
+#
+# Inside the network services reach each other by name (http://catalog-service:8000).
+# Every HTTP service listens on 8000 inside its container; *_HOST_PORT picks the
+# port on your machine.
+
+x-service-defaults: &service-defaults
+  env_file:
+    - path: .env
+      required: false
+  deploy:
+    resources:
+      limits:
+        memory: 512M
+      reservations:
+        memory: 256M
+  restart: unless-stopped
+
+x-http-healthcheck: &http-healthcheck
+  test:
+    - CMD
+    - python
+    - -c
+    - import urllib.request; urllib.request.urlopen("http://localhost:8000/health")
+  interval: 10s
+  timeout: 5s
+  retries: 5
+  start_period: 15s
+
+services:
+  catalog-service:
+    <<: *service-defaults
+    build:
+      context: .
+      dockerfile: devops/Dockerfile
+      args:
+        SERVICE: catalog-service
+    ports:
+      - "${CATALOG_SERVICE_HOST_PORT:-8000}:8000"
+    environment:
+      CATALOG_SERVICE_PORT: "8000"
+    healthcheck: *http-healthcheck
+
+  order-service:
+    <<: *service-defaults
+    build:
+      context: .
+      dockerfile: devops/Dockerfile
+      args:
+        SERVICE: order-service
+    ports:
+      - "${ORDER_SERVICE_HOST_PORT:-8001}:8000"
+    environment:
+      ORDER_SERVICE_PORT: "8000"
+      ORDER_SERVICE_CATALOG_URL: http://catalog-service:8000
+    healthcheck: *http-healthcheck
+    depends_on:
+      catalog-service:
+        condition: service_healthy
+
+  import-worker:
+    <<: *service-defaults
+    build:
+      context: .
+      dockerfile: devops/Dockerfile
+      args:
+        SERVICE: import-worker
+    environment:
+      IMPORT_WORKER_CATALOG_URL: http://catalog-service:8000
+    # Drop a file in: docker compose cp items.json import-worker:/app/data/inbox/
+    volumes:
+      - import-data:/app/data
+    depends_on:
+      catalog-service:
+        condition: service_healthy
+
+volumes:
+  import-data:

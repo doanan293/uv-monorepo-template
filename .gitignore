@@ -1,0 +1,40 @@
+# Operating systems
+.DS_Store
+Thumbs.db
+
+# Editors
+.idea/
+.vscode/
+*.swp
+*~
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+build/
+dist/
+
+# Python tool caches and coverage
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.pyrefly/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+
+# Logs and temporary files
+*.log
+tmp/
+
+# Local runtime data (import-worker inbox)
+data/

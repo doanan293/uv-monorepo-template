@@ -1,0 +1,14 @@
+[extend]
+useDefault = true
+
+[allowlist]
+# Only the lock file is skipped (package hashes). Example files are scanned too,
+# so a real secret pasted into .env.example is still caught.
+description = "Generated files and placeholder values"
+paths = [
+    '''(^|/)uv\.lock$''',
+]
+regexes = [
+    '''CHANGE_ME''',
+    '''<your[_-]?.*>''',
+]
